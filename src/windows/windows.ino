@@ -4,6 +4,7 @@
 // History:
 // 2016-04-01 Yoann Aubineau - Initial program
 // 2016-08-16 Yoann Aubineau - Code cleanup before pushing to Github
+// 2016-09-03 Yoann Aubineau - Never stop window movement once initiated
 
 // Todo:
 // - Make board LED blink when temperature is between thredsholds.
@@ -207,26 +208,4 @@ void loop() {
     }
     return;
   }
-
-  // --------------------------------------------------------------------------
-  // Stop windows otherwise
-
-  BOARD_LED_OFF
-  FOR_EACH_WINDOW {
-    messages[i] = NULL_STRING;
-  }
-  FOR_EACH_WINDOW {
-    if (win_status[i] != 0) {
-      win_status[i] = 0;
-      messages[i] = "STOPPING window " + String(i);
-      digitalWrite(win_action_pins[i], LOW);
-      digitalWrite(win_direction_pins[i], LOW);
-    }
-  }
-  FOR_EACH_WINDOW {
-    if (messages[i] != NULL_STRING) {
-      Serial.println(messages[i]);
-    }
-  }
-  return;
 }
