@@ -2,9 +2,10 @@
 // or lower than a fixed threshold.
 
 // History:
-// 2016-04-01 Yoann Aubineau - Initial program
-// 2016-08-16 Yoann Aubineau - Code cleanup before pushing to Github
+// 2016-09-04 Yoann Aubineau - Improve readability with macros
 // 2016-09-03 Yoann Aubineau - Never stop window movement once initiated
+// 2016-08-16 Yoann Aubineau - Cleanup code before pushing to Github
+// 2016-04-01 Yoann Aubineau - Initial program
 
 // Todo:
 // - Make board LED blink when temperature is between thredsholds.
@@ -19,21 +20,47 @@
 const int window_count = 8;
 #define FOR_EACH_WINDOW for (int i = 0; i < window_count; i++)
 
-const int win_direction_pins[window_count] = { 22, 24, 26, 28, 30, 32, 34, 36 };
-const int win_action_pins[window_count]    = { 38, 40, 42, 44, 46, 48, 50, 52 };
-const int win_opened_pins[window_count]    = { 39, 41, 43, 45, 47, 49, 51, 53 };
-const int win_closed_pins[window_count]    = { 23, 25, 27, 29, 31, 33, 35, 37 };
+const int win_direction_pins[window_count] = {22, 24, 26, 28, 30, 32, 34, 36};
+const int win_action_pins[window_count]    = {38, 40, 42, 44, 46, 48, 50, 52};
+const int win_opened_pins[window_count]    = {39, 41, 43, 45, 47, 49, 51, 53};
+const int win_closed_pins[window_count]    = {23, 25, 27, 29, 31, 33, 35, 37};
 
-int win_status[window_count]               = {  0,  0,  0,  0,  0,  0,  0,  0 };
+#define SET_MOTOR_TO_OPEN  digitalWrite(win_direction_pins[i], LOW)
+#define SET_MOTOR_TO_CLOSE digitalWrite(win_direction_pins[i], HIGH)
+#define START_MOTOR        digitalWrite(win_action_pins[i], HIGH)
+#define STOP_MOTOR         digitalWrite(win_action_pins[i], LOW)
 
-unsigned long win_started_at[window_count] = {  0,  0,  0,  0,  0,  0,  0,  0 };
+#define OPEN_WINDOW  SET_MOTOR_TO_OPEN;  START_MOTOR
+#define CLOSE_WINDOW SET_MOTOR_TO_CLOSE; START_MOTOR
+#define STOP_WINDOW  STOP_MOTOR;         SET_MOTOR_TO_OPEN
+
+#define MOTOR_IS_SET_TO_OPEN  digitalRead(win_direction_pins[i]) == LOW
+#define MOTOR_IS_SET_TO_CLOSE digitalRead(win_direction_pins[i]) == HIGH
+#define MOTOR_IS_STARTED      digitalRead(win_action_pins[i]) == HIGH
+#define MOTOR_IS_STOPPED      digitalRead(win_action_pins[i]) == LOW
+
+#define WINDOW_IS_OPENING MOTOR_IS_SET_TO_OPEN  && MOTOR_IS_STARTED
+#define WINDOW_IS_CLOSING MOTOR_IS_SET_TO_CLOSE && MOTOR_IS_STARTED
+
+#define WINDOW_IS_OPENED     digitalRead(win_opened_pins[i]) == LOW
+#define WINDOW_IS_CLOSED     digitalRead(win_closed_pins[i]) == LOW
+
+unsigned long win_started_at[window_count] = { 0,  0,  0,  0,  0,  0,  0,  0};
 const unsigned long win_max_running_time = 30000;
 
+#define START_TIMER win_started_at[i] = millis()
+#define RUNNING_TIME_IS_OVER \
+  win_started_at[i] + win_max_running_time <= millis()
+
 // ****************************************************************************
-// MESSAGE buffer used to delay writing to serial, which is slow
+// MESSAGE buffers used to delay writing to serial console, which is slow
 
 String messages[window_count];
 const String NULL_STRING = String("NULL_STRING");
+
+#define CLEAR_MESSAGE_BUFFERS FOR_EACH_WINDOW { messages[i] = NULL_STRING; }
+#define PRINT_MESSAGE_BUFFERS FOR_EACH_WINDOW { \
+  if (messages[i] != NULL_STRING) { Serial.println(messages[i]); } }
 
 // ****************************************************************************
 // TEMPERATURE
@@ -47,32 +74,41 @@ const float threshold_margin = 0.5;
 const float high_temperature_threshold = temperature_threshold + threshold_margin;
 const float low_temperature_threshold = temperature_threshold - threshold_margin;
 
+#define TEMPERATURE_IS_HIGH current_temperature > high_temperature_threshold
+#define TEMPERATURE_IS_LOW  current_temperature < low_temperature_threshold
+
 unsigned long temperature_last_read_at = 0;
 const int temperature_read_interval = 2000;
+
+int temperature_area = 0;
+
+#define REMEMBER_TEMPERATURE_IS_HIGH temperature_area = +1
+#define REMEMBER_TEMPERATURE_IS_LOW  temperature_area = -1
+
+#define TEMPERATURE_WAS_HIGH     temperature_area == +1
+#define TEMPERATURE_WAS_LOW      temperature_area == -1
 
 // ****************************************************************************
 // BOARD LED
 
-#define BOARD_LED_INIT digitalWrite(13, LOW); pinMode(13, OUTPUT);
-#define BOARD_LED_ON digitalWrite(13, HIGH);
-#define BOARD_LED_OFF digitalWrite(13, LOW);
+#define BOARD_LED_INIT digitalWrite(13, LOW); pinMode(13, OUTPUT)
+#define BOARD_LED_ON   digitalWrite(13, HIGH)
+#define BOARD_LED_OFF  digitalWrite(13, LOW)
 
 // ****************************************************************************
 void setup() {
 
-  BOARD_LED_INIT
+  BOARD_LED_INIT;
   Serial.begin(9600);
   Serial.flush();
   dht.begin();
 
   FOR_EACH_WINDOW {
-    digitalWrite(win_direction_pins[i], LOW);
-    digitalWrite(win_action_pins[i], LOW);
+    STOP_WINDOW;
     pinMode(win_direction_pins[i], OUTPUT);
     pinMode(win_action_pins[i], OUTPUT);
     pinMode(win_opened_pins[i], INPUT_PULLUP);
     pinMode(win_closed_pins[i], INPUT_PULLUP);
-    win_status[i] = 0;
   }
 }
 
@@ -80,69 +116,40 @@ void setup() {
 void loop() {
 
   // --------------------------------------------------------------------------
-  // Stop motors after timeout
+  // Stop motors after timeout, whatever the direction
 
+  CLEAR_MESSAGE_BUFFERS;
   FOR_EACH_WINDOW {
-    messages[i] = NULL_STRING;
-  }
-  FOR_EACH_WINDOW {
-    if (win_status[i] != 0 &&
-        digitalRead(win_action_pins[i]) == HIGH &&
-        win_started_at[i] + win_max_running_time <= millis()) {
-      messages[i] = "Window " + String(i) + " timeout --> stopping motor.";
-      digitalWrite(win_action_pins[i], LOW);
-      digitalWrite(win_direction_pins[i], LOW);
+    if (MOTOR_IS_STARTED && RUNNING_TIME_IS_OVER) {
+      messages[i] = "Window " + String(i) + " timeout -> stopping motor.";
+      STOP_WINDOW;
     }
   }
-  FOR_EACH_WINDOW {
-    if (messages[i] != NULL_STRING) {
-      Serial.println(messages[i]);
-    }
-  }
+  PRINT_MESSAGE_BUFFERS;
 
   // --------------------------------------------------------------------------
   // Stop motors when windows are fully opened
 
+  CLEAR_MESSAGE_BUFFERS;
   FOR_EACH_WINDOW {
-    messages[i] = NULL_STRING;
-  }
-  FOR_EACH_WINDOW {
-    if (win_status[i] == 1 &&
-        digitalRead(win_action_pins[i]) == HIGH &&
-        digitalRead(win_direction_pins[i]) == LOW &&
-        digitalRead(win_opened_pins[i]) == LOW) {
-      messages[i] = "Window " + String(i) + " fully opened --> stopping motor.";
-      digitalWrite(win_action_pins[i], LOW);
-      digitalWrite(win_direction_pins[i], LOW);
+    if (WINDOW_IS_OPENING && WINDOW_IS_OPENED) {
+      messages[i] = "Window " + String(i) + " fully opened -> stopping motor.";
+      STOP_WINDOW;
     }
   }
-  FOR_EACH_WINDOW {
-    if (messages[i] != NULL_STRING) {
-      Serial.println(messages[i]);
-    }
-  }
+  PRINT_MESSAGE_BUFFERS;
 
   // --------------------------------------------------------------------------
   // Stop motors when windows are fully closed
 
+  CLEAR_MESSAGE_BUFFERS;
   FOR_EACH_WINDOW {
-    messages[i] = NULL_STRING;
-  }
-  FOR_EACH_WINDOW {
-    if (win_status[i] == -1 &&
-        digitalRead(win_action_pins[i]) == HIGH &&
-        digitalRead(win_direction_pins[i]) == HIGH &&
-        digitalRead(win_closed_pins[i]) == LOW) {
-      messages[i] = "Window " + String(i) + " fully closed --> stopping motor.";
-      digitalWrite(win_action_pins[i], LOW);
-      digitalWrite(win_direction_pins[i], LOW);
+    if (WINDOW_IS_CLOSING && WINDOW_IS_CLOSED) {
+      messages[i] = "Window " + String(i) + " fully closed -> stopping motor.";
+      STOP_WINDOW;
     }
   }
-  FOR_EACH_WINDOW {
-    if (messages[i] != NULL_STRING) {
-      Serial.println(messages[i]);
-    }
-  }
+  PRINT_MESSAGE_BUFFERS;
 
   // --------------------------------------------------------------------------
   // Read temperature at fixed interval
@@ -160,52 +167,38 @@ void loop() {
   Serial.println(String(current_temperature) + " °C");
 
   // --------------------------------------------------------------------------
-  // Open windows when temperature is high
+  // Open windows when temperature becomes high
 
-  if (current_temperature > high_temperature_threshold) {
-    BOARD_LED_ON
+  if (TEMPERATURE_IS_HIGH && !(TEMPERATURE_WAS_HIGH)) {
+    REMEMBER_TEMPERATURE_IS_HIGH;
+    BOARD_LED_ON;
+    CLEAR_MESSAGE_BUFFERS;
     FOR_EACH_WINDOW {
-      messages[i] = NULL_STRING;
-    }
-    FOR_EACH_WINDOW {
-      if (win_status[i] != 1 && digitalRead(win_opened_pins[i]) != LOW) {
-        win_status[i] = 1;
+      if (!(WINDOW_IS_OPENED)) {
         messages[i] = "OPENING window " + String(i);
-        digitalWrite(win_direction_pins[i], LOW);
-        digitalWrite(win_action_pins[i], HIGH);
-        win_started_at[i] = millis();
+        START_TIMER;
+        OPEN_WINDOW;
       }
     }
-    FOR_EACH_WINDOW {
-      if (messages[i] != NULL_STRING) {
-        Serial.println(messages[i]);
-      }
-    }
+    PRINT_MESSAGE_BUFFERS;
     return;
   }
 
   // --------------------------------------------------------------------------
-  // Close windows when temperature is low
+  // Close windows when temperature becomes low
 
-  if (current_temperature < low_temperature_threshold) {
-    BOARD_LED_OFF
+  if (TEMPERATURE_IS_LOW && !(TEMPERATURE_WAS_LOW)) {
+    REMEMBER_TEMPERATURE_IS_LOW;
+    BOARD_LED_OFF;
+    CLEAR_MESSAGE_BUFFERS;
     FOR_EACH_WINDOW {
-      messages[i] = NULL_STRING;
-    }
-    FOR_EACH_WINDOW {
-      if (win_status[i] != -1 && digitalRead(win_closed_pins[i]) != LOW) {
-        win_status[i] = -1;
+      if (!(WINDOW_IS_CLOSED)) {
         messages[i] = "CLOSING window " + String(i);
-        digitalWrite(win_direction_pins[i], HIGH);
-        digitalWrite(win_action_pins[i], HIGH);
-        win_started_at[i] = millis();
+        START_TIMER;
+        CLOSE_WINDOW;
       }
     }
-    FOR_EACH_WINDOW {
-      if (messages[i] != NULL_STRING) {
-        Serial.println(messages[i]);
-      }
-    }
+    PRINT_MESSAGE_BUFFERS;
     return;
   }
 }
