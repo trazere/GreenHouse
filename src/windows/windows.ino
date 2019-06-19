@@ -17,21 +17,21 @@
 // ****************************************************************************
 // Windows
 
-const int window_count = 8;
-#define FOR_EACH_WINDOW for (int i = 0; i < window_count; i += 1)
+const int windowCount = 8;
+const unsigned long windowMoveTimeout = 30000;
 
-const unsigned long win_max_running_time = 30000;
-
-Window windows[window_count] = {
-  Window("N1", 22, 38, 39, 23, win_max_running_time),
-  Window("N2", 24, 40, 41, 25, win_max_running_time),
-  Window("N3", 26, 42, 43, 27, win_max_running_time),
-  Window("N4", 28, 44, 45, 29, win_max_running_time),
-  Window("S1", 30, 46, 47, 31, win_max_running_time),
-  Window("S2", 32, 48, 49, 33, win_max_running_time),
-  Window("S3", 34, 50, 51, 35, win_max_running_time),
-  Window("S4", 36, 52, 53, 37, win_max_running_time),
+Window windows[windowCount] = {
+  Window("N1", 22, 38, 39, 23, windowMoveTimeout),
+  Window("N2", 24, 40, 41, 25, windowMoveTimeout),
+  Window("N3", 26, 42, 43, 27, windowMoveTimeout),
+  Window("N4", 28, 44, 45, 29, windowMoveTimeout),
+  Window("S1", 30, 46, 47, 31, windowMoveTimeout),
+  Window("S2", 32, 48, 49, 33, windowMoveTimeout),
+  Window("S3", 34, 50, 51, 35, windowMoveTimeout),
+  Window("S4", 36, 52, 53, 37, windowMoveTimeout),
 };
+
+#define FOR_EACH_WINDOW for (int i = 0; i < windowCount; i += 1)
 
 // ****************************************************************************
 // TEMPERATURE
