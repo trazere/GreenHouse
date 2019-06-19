@@ -36,6 +36,25 @@ Window windows[windowCount] = {
 
 
 // ****************************************************************************
+// Led
+
+const int ledPin = 13;
+
+void setupLed() {
+  digitalWrite(ledPin, LOW);
+  pinMode(ledPin, OUTPUT);
+}
+
+void switchLedOn() {
+  digitalWrite(ledPin, HIGH);
+}
+
+void switchLedOff() {
+  digitalWrite(ledPin, LOW);
+}
+
+
+// ****************************************************************************
 // Temperature
 
 const int SENSOR_PIN = A0;
@@ -50,21 +69,13 @@ unsigned long lastTemperatureReadTime = 0;
 
 
 // ****************************************************************************
-// Led
-
-#define BOARD_LED_INIT digitalWrite(13, LOW); pinMode(13, OUTPUT);
-#define BOARD_LED_ON digitalWrite(13, HIGH);
-#define BOARD_LED_OFF digitalWrite(13, LOW);
-
-
-// ****************************************************************************
 // Sketch
 
 void setup() {
   Serial.begin(9600);
   Serial.flush();
   
-  BOARD_LED_INIT
+  setupLed();
   
   dht.begin();
   
@@ -93,7 +104,8 @@ void loop() {
     
     // Open the windows when temperature is high.
     if (temperature > openTemperatureThreshold) {
-      BOARD_LED_ON
+      switchLedOn();
+      
       FOR_EACH_WINDOW {
         if (!windows[i].hasTimedOut()) {
           windows[i].open();
@@ -102,7 +114,8 @@ void loop() {
     
     // Close the windows when temperature is low.
     } else if (temperature < closeTemperatureThreshold) {
-      BOARD_LED_OFF
+      switchLedOff();
+      
       FOR_EACH_WINDOW {
         if (!windows[i].hasTimedOut()) {
           windows[i].close();
@@ -111,7 +124,8 @@ void loop() {
   
     // Stop the windows otherwise.
     } else {
-      BOARD_LED_OFF
+      switchLedOff();
+      
       FOR_EACH_WINDOW {
         windows[i].stop();
       }
