@@ -14,6 +14,7 @@
 #include "DHT.h"
 #include "Window.h"
 
+
 // ****************************************************************************
 // Windows
 
@@ -47,39 +48,38 @@ const float openTemperatureThreshold = 26.0;
 const unsigned long temperatureReadInterval = 2000;
 unsigned long lastTemperatureReadTime = 0;
 
+
 // ****************************************************************************
-// BOARD LED
+// Led
 
 #define BOARD_LED_INIT digitalWrite(13, LOW); pinMode(13, OUTPUT);
 #define BOARD_LED_ON digitalWrite(13, HIGH);
 #define BOARD_LED_OFF digitalWrite(13, LOW);
 
-// ****************************************************************************
-void setup() {
 
-  BOARD_LED_INIT
+// ****************************************************************************
+// Sketch
+
+void setup() {
   Serial.begin(9600);
   Serial.flush();
+  
+  BOARD_LED_INIT
+  
   dht.begin();
-
+  
   FOR_EACH_WINDOW {
     windows[i].setup();
   }
 }
 
-// ****************************************************************************
 void loop() {
-  
-  // --------------------------------------------------------------------------
   // Autostop the windows.
-  
   FOR_EACH_WINDOW {
     windows[i].autostop();
   }
   
-  // --------------------------------------------------------------------------
-  // Read temperature at fixed interval
-  
+  // Read temperature at fixed interval.
   unsigned long now = millis();
   if (lastTemperatureReadTime + temperatureReadInterval > now) {
     return;
@@ -88,42 +88,33 @@ void loop() {
   lastTemperatureReadTime = now;
   if (isnan(temperature)) {
     Serial.println("Failed to read from DHT sensor!");
-    return;
-  }
-  Serial.println(String(temperature) + " °C");
-
-  // --------------------------------------------------------------------------
-  // Open windows when temperature is high
-
-  if (temperature > openTemperatureThreshold) {
-    BOARD_LED_ON
-    FOR_EACH_WINDOW {
-      if (!windows[i].hasTimedOut()) {
-        windows[i].open();
+  } else {
+    Serial.println(String(temperature) + " °C");
+    
+    // Open the windows when temperature is high.
+    if (temperature > openTemperatureThreshold) {
+      BOARD_LED_ON
+      FOR_EACH_WINDOW {
+        if (!windows[i].hasTimedOut()) {
+          windows[i].open();
+        }
       }
-    }
-    return;
-  }
-
-  // --------------------------------------------------------------------------
-  // Close windows when temperature is low
-
-  if (temperature < closeTemperatureThreshold) {
-    BOARD_LED_OFF
-    FOR_EACH_WINDOW {
-      if (!windows[i].hasTimedOut()) {
-        windows[i].close();
+    
+    // Close the windows when temperature is low.
+    } else if (temperature < closeTemperatureThreshold) {
+      BOARD_LED_OFF
+      FOR_EACH_WINDOW {
+        if (!windows[i].hasTimedOut()) {
+          windows[i].close();
+        }
       }
-    }
-    return;
-  }
-
-  // --------------------------------------------------------------------------
-  // Stop windows otherwise
   
-  BOARD_LED_OFF
-  FOR_EACH_WINDOW {
-    windows[i].stop();
+    // Stop the windows otherwise.
+    } else {
+      BOARD_LED_OFF
+      FOR_EACH_WINDOW {
+        windows[i].stop();
+      }
+    }
   }
-  return;
 }
