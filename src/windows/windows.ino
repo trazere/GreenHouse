@@ -8,7 +8,6 @@
 // 2019-06-19 Julien Dufour - Revamped the code with the Window class
 
 // Todo:
-// - Make board LED blink when temperature is between thredsholds.
 // - Add manual open/close control.
 
 #include "DHT.h"
@@ -51,6 +50,10 @@ void switchLedOn() {
 
 void switchLedOff() {
   digitalWrite(ledPin, LOW);
+}
+
+void blinkLed() {
+  digitalWrite(ledPin, LOW == digitalRead(ledPin) ? HIGH : LOW);
 }
 
 
@@ -124,7 +127,7 @@ void loop() {
   
     // Stop the windows otherwise.
     } else {
-      switchLedOff();
+      blinkLed();
       
       FOR_EACH_WINDOW {
         windows[i].stop();
